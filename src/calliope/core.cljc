@@ -77,16 +77,22 @@
     :else
     (assert false (str "Not a subscription:" sub))))
 
-;; Models combined with cmds (for initialization and update fns)
+;; Models combined with cmds (convenient for initialization and update fns)
 
 (defrecord ^:no-doc ModelWithCmd [model cmd])
 
 (defn add-cmd [v cmd]
-  (if (instance? ModelWithCmd v)
-    (update v :cmd batch-cmds cmd)
-    (ModelWithCmd. v cmd)))
+  (if (nil? cmd)
+    v
+    (if (instance? ModelWithCmd v)
+      (update v :cmd batch-cmds cmd)
+      (ModelWithCmd. v cmd))))
 
-(defn model+cmd [v] ;; TODO: name?
+(defn extract-model+cmd [v]
   (if (instance? ModelWithCmd v)
     [(:model v) (:cmd v)]
     [v nil]))
+
+(defn update-model [m & args]
+  (let [[m' c] (extract-model+cmd m)]
+    (add-cmd (apply update m' args) c)))
