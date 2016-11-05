@@ -1,5 +1,5 @@
 (ns calliope.core
-  (:require [orpheus.core :as orpheus]))
+  (:require [orpheus.transformer :as t]))
 
 ;; Commands
 
@@ -12,7 +12,7 @@
 (defrecord ^:no-doc TransformedCmd [base t]
   ICmd
   (-run! [this dispatch!]
-    (-run! base (orpheus/transformed (orpheus/trans-> t dispatch!)))))
+    (-run! base (t/transformed (t/trans-> t dispatch!)))))
 
 (defrecord ^:no-doc BatchedCmds [cmds]
   ICmd
@@ -28,7 +28,7 @@
     
     (instance? TransformedCmd cmd)
     (TransformedCmd. (.-base cmd)
-                     (apply orpheus/trans-> t ts))
+                     (apply t/trans-> t ts))
     
     (satisfies? ICmd cmd)
     (apply (TransformedCmd. cmd t) ts)
@@ -53,7 +53,7 @@
 (defrecord ^:no-doc TransformedSub [base t]
   ISub
   (-subscribe! [this dispatch!]
-    (-subscribe! base (orpheus/transformed (orpheus/trans-> t dispatch!))))
+    (-subscribe! base (t/transformed (t/trans-> t dispatch!))))
   (-unsubscribe! [this id]
     (-unsubscribe! base id)))
 
@@ -70,7 +70,7 @@
     
     (instance? TransformedSub sub)
     (TransformedSub. (.-base sub)
-                     (apply orpheus/trans-> t ts))
+                     (apply t/trans-> t ts))
     
     (satisfies? ISub sub)
     (apply (TransformedSub. sub t) ts)
@@ -96,3 +96,21 @@
 (defn update-model [m & args]
   (let [[m' c] (extract-model+cmd m)]
     (add-cmd (apply update m' args) c)))
+
+(defn model->* [m & fs]
+  (reduce (fn [m f]
+            (let [[m' cmd] (extract-model+cmd m)
+                  [m'' cmd'] (extract-model+cmd (f m'))]
+              (-> m''
+                  (add-cmd cmd)
+                  (add-cmd cmd'))))
+          m
+          fs))
+
+#?(:clj
+   (defmacro model-> [m & exprs]
+     (model->* m (map (fn [expr]
+                        (if (list? expr)
+                          `(fn [v] (~(first expr) v ~@(rest expr)))
+                          `(fn [v] (~expr v))))
+                      exprs))))
