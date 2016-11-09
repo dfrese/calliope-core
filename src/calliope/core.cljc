@@ -28,10 +28,11 @@
     
     (instance? TransformedCmd cmd)
     (TransformedCmd. (.-base cmd)
-                     (apply t/trans-> t ts))
+                     (apply t/trans-> (.-t cmd) t ts))
     
     (satisfies? ICmd cmd)
-    (apply (TransformedCmd. cmd t) ts)
+    (TransformedCmd. cmd (apply t/trans-> (t/transformer t) ts))
+    
     :else
     (assert false (str "Not a command:" cmd))))
 
@@ -70,10 +71,11 @@
     
     (instance? TransformedSub sub)
     (TransformedSub. (.-base sub)
-                     (apply t/trans-> t ts))
+                     (apply t/trans-> (.-t sub) t ts))
     
     (satisfies? ISub sub)
-    (apply (TransformedSub. sub t) ts)
+    (TransformedSub. sub (apply t/trans-> (t/transformer t) ts))
+
     :else
     (assert false (str "Not a subscription:" sub))))
 
