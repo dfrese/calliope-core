@@ -1,24 +1,40 @@
 (ns calliope.core
   (:require [orpheus.transformer :as t]))
 
+(defn context [dispatch-msg! element]
+  {::dispatch! dispatch-msg!
+   ::element element})
+
+(defn context-element [context]
+  (::element context))
+
+(defn dispatcher [context]
+  (::dispatch! context))
+
+(defn dispatch! [context msg]
+  ((dispatcher context) msg))
+
+(defn update-dispatcher [context f & args]
+  (apply update context ::dispatch! f args))
+
 ;; Commands
 
 (defprotocol ICmd
   ;; TODO: allow synchronous msgs?
-  (-run! [this dispatch!] "Executes the side effect of this
+  (-run! [this context] "Executes the side effect of this
   command. May later send messages to the app via `dispatch!` zero or more
   times."))
 
 (defrecord ^:no-doc TransformedCmd [base t]
   ICmd
-  (-run! [this dispatch!]
-    (-run! base (t/transformed (t/trans-> t dispatch!)))))
+  (-run! [this context]
+    (-run! base (update-dispatcher context #(t/trans-> t %)))))
 
 (defrecord ^:no-doc BatchedCmds [cmds]
   ICmd
-  (-run! [this dispatch!] ;; TODO: or context arg again?
+  (-run! [this context]
     (doseq [c cmds]
-      (-run! c dispatch!))))
+      (-run! c context))))
 
 (defn cmd-> [cmd t & ts]
   (cond
@@ -45,7 +61,7 @@
 
 (defprotocol ISub
   ;; TODO: allow synchronous msgs?
-  (-subscribe! [this dispatch!] "Add a new subscription to this,
+  (-subscribe! [this context] "Add a new subscription to this,
   returning an id which can be passed to `unsubscribe!`. May later
   send messages to the app via `dispatch!`.")
   (-unsubscribe! [this id] "Cancel the subscription with the given
@@ -53,8 +69,8 @@
 
 (defrecord ^:no-doc TransformedSub [base t]
   ISub
-  (-subscribe! [this dispatch!]
-    (-subscribe! base (t/transformed (t/trans-> t dispatch!))))
+  (-subscribe! [this _context]
+    (-subscribe! base (update-dispatcher context #(t/trans-> t %))))
   (-unsubscribe! [this id]
     (-unsubscribe! base id)))
 

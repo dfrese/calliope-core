@@ -4,7 +4,7 @@
 
 (defrecord ^:no-doc Focus [document id]
   core/ICmd
-  (-run! [this dispatch!]
+  (-run! [this context]
     (when-let [node (.getElementById document id)]
       (batch/focus! node))))
 
@@ -40,7 +40,7 @@
 
 (defrecord ^:no-doc HashCmd [window hash]
   core/ICmd
-  (-run! [this dispatch!]
+  (-run! [this context]
     (set! (.-hash (.-location window))
           hash)))
 
