@@ -1,12 +1,9 @@
 (ns calliope.core
-  (:require [orpheus.transformer :as t]))
+  (:require [active.clojure.arrow :as a]))
 
-(defn context [dispatch-msg! element]
-  {::dispatch! dispatch-msg!
-   ::element element})
-
-(defn context-element [context]
-  (::element context))
+(defn context [dispatch-msg! & more]
+  (apply assoc {::dispatch! dispatch-msg!}
+         more))
 
 (defn dispatcher [context]
   (::dispatch! context))
@@ -20,15 +17,14 @@
 ;; Commands
 
 (defprotocol ICmd
-  ;; TODO: allow synchronous msgs?
   (-run! [this context] "Executes the side effect of this
-  command. May later send messages to the app via `dispatch!` zero or more
+  command. May immediately or later send messages to the app via `dispatch!` zero or more
   times."))
 
 (defrecord ^:no-doc TransformedCmd [base t]
   ICmd
   (-run! [this context]
-    (-run! base (update-dispatcher context #(t/trans-> t %)))))
+    (-run! base (update-dispatcher context #(a/>>> t %)))))
 
 (defrecord ^:no-doc BatchedCmds [cmds]
   ICmd
@@ -44,10 +40,10 @@
     
     (instance? TransformedCmd cmd)
     (TransformedCmd. (.-base cmd)
-                     (apply t/trans-> (.-t cmd) t ts))
+                     (apply a/>>> (.-t cmd) t ts))
     
     (satisfies? ICmd cmd)
-    (TransformedCmd. cmd (apply t/trans-> (t/transformer t) ts))
+    (TransformedCmd. cmd (apply a/>>> t ts))
     
     :else
     (assert false (str "Not a command:" cmd))))
@@ -69,8 +65,8 @@
 
 (defrecord ^:no-doc TransformedSub [base t]
   ISub
-  (-subscribe! [this _context]
-    (-subscribe! base (update-dispatcher context #(t/trans-> t %))))
+  (-subscribe! [this context]
+    (-subscribe! base (update-dispatcher context #(a/>>> t %))))
   (-unsubscribe! [this id]
     (-unsubscribe! base id)))
 
@@ -87,10 +83,10 @@
     
     (instance? TransformedSub sub)
     (TransformedSub. (.-base sub)
-                     (apply t/trans-> (.-t sub) t ts))
+                     (apply a/>>> (.-t sub) t ts))
     
     (satisfies? ISub sub)
-    (TransformedSub. sub (apply t/trans-> (t/transformer t) ts))
+    (TransformedSub. sub (apply a/>>> t ts))
 
     :else
     (assert false (str "Not a subscription:" sub))))
@@ -132,3 +128,18 @@
                           `(fn [v] (~(first expr) v ~@(rest expr)))
                           `(fn [v] (~expr v))))
                       exprs))))
+
+#?(:cljs
+   (defrecord ^:no-doc EventListenerSub [^js/EventTarget target event-name use-capture?]
+              ISub
+              (-subscribe! [this context]
+                (let [f (fn [e]
+                          (dispatch! context e))]
+                  (.addEventListener target event-name f use-capture?)
+                  f))
+              (-unsubscribe! [this f]
+                (.removeEventListener target event-name f use-capture?))))
+
+#?(:cljs
+   (defn event-listener-sub [^:js/EventTarget target event-name use-capture?]
+     (EventListenerSub. target event-name use-capture?)))
