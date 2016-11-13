@@ -70,11 +70,6 @@
   (-unsubscribe! [this id]
     (-unsubscribe! base id)))
 
-(defn batch-subs
-  ([sub] sub)
-  ([s & subs]
-   (apply vector (remove nil? (cons s subs)))))
-
 (defn sub-> [sub t & ts]
   (cond
     (vector? sub)
