@@ -90,7 +90,7 @@
 
 (defrecord ^:no-doc ModelWithCmd [model cmd])
 
-(defn add-cmd [v cmd]
+(defn +cmd [v cmd]
   (if (nil? cmd)
     v
     (if (instance? ModelWithCmd v)
@@ -102,27 +102,23 @@
     [(:model v) (:cmd v)]
     [v nil]))
 
-(defn update-model [m & args]
+(defn update-model [m f & args]
   (let [[m' c] (extract-model+cmd m)]
-    (add-cmd (apply update m' args) c)))
+    (+cmd (apply f m' args) c)))
 
-(defn model->* [m & fs]
-  (reduce (fn [m f]
-            (let [[m' cmd] (extract-model+cmd m)
-                  [m'' cmd'] (extract-model+cmd (f m'))]
-              (-> m''
-                  (add-cmd cmd)
-                  (add-cmd cmd'))))
+(defn- model->* [m & fs]
+  (reduce update-model
           m
           fs))
 
 #?(:clj
    (defmacro model-> [m & exprs]
-     (model->* m (map (fn [expr]
-                        (if (list? expr)
-                          `(fn [v] (~(first expr) v ~@(rest expr)))
-                          `(fn [v] (~expr v))))
-                      exprs))))
+     (let [fns (map (fn [expr]
+                      (if (list? expr)
+                        `(fn [v#] (~(first expr) v# ~@(rest expr)))
+                        `(fn [v#] (~expr v#))))
+                    exprs)]
+       `(model->* ~m ~@fns))))
 
 #?(:cljs
    (defrecord ^:no-doc EventListenerSub [^js/EventTarget target event-name use-capture?]
