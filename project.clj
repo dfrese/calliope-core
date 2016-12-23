@@ -6,7 +6,7 @@
 
   :dependencies [[org.clojure/clojure "1.8.0" :scope "provided"]
                  [org.clojure/clojurescript "1.9.229" :scope "provided"]
-                 [de.active-group/edonus "0.1.0-SNAPSHOT"]
+                 [de.active-group/edomus "0.1.0-SNAPSHOT"]
                  [active-clojure "0.13.0-SNAPSHOT"]]
 
   :plugins [[lein-cljsbuild "1.1.4"]
