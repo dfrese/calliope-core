@@ -1,15 +1,14 @@
 (ns calliope.browser
-  (:require [calliope.core :as core]
-            [edomus.core :as dom]))
+  (:require [calliope.core :as core]))
+
+;; TODO: move out of the core lib
 
 (defrecord ^:no-doc Focus
   [document id]
   core/ICmd
   (-run! [this context]
-    (dom/at-next-animation-frame!
-     (fn []
-       (when-let [node (.getElementById document id)]
-         (dom/focus! node))))))
+    (when-let [node (.getElementById document id)]
+      (.focus node))))
 
 (defn focus "Returns a command that sets the focus to the DOM element
   with the given id, in the given document. Note that the id does not
