@@ -1,7 +1,6 @@
 (ns calliope.component
   (:require [calliope.core :as core]
             [orpheus.core :as orpheus]
-            [orpheus.html :as html]
             [calliope.app :as app]
             [edomus.core :as dom]))
 
@@ -19,10 +18,9 @@
   [init view update subscription options node-type]
   orpheus/IElementType
   (create-element-node [this document]
-    (orpheus/create-element-node node-type document))
+    (dom/create-element document node-type))
   
   (element-node-was-created! [this node]
-    (orpheus/element-node-was-created! node-type node)
     (let [model (init (fn [p]
                         (dom/get-property node p)))
           app (app/app model view update subscription)
@@ -32,10 +30,9 @@
       node))
   
   (element-node-will-be-updated! [this node]
-    (orpheus/element-node-will-be-updated! node-type node))
+    nil)
   
   (element-node-was-updated! [this node]
-    (orpheus/element-node-was-updated! node-type node)
     ;; property changes are signalled via a sub, as it's supposed to change the model.
     (app/send-to-port! (get-instance node) properties-changed-port
                        (fn [p] (dom/get-property node p)))
@@ -44,7 +41,6 @@
     ;; (app/send-to-port! (get-instance node) did-update-port [old-props new-props])
     )
   (element-node-will-be-removed! [this node]
-    (orpheus/element-node-will-be-removed! node-type node)
     ;; inform the component??
     (app/destroy-instance! (get-instance node))))
 
@@ -92,7 +88,7 @@
 (defn- component-type [init view update subscription & [options]]
   (ComponentAppType. init view update subscription (dissoc options :node-type)
                      (or (:node-type options)
-                         html/div)))
+                         "div")))
 
 (defn- ctor-fn [type]
   (fn [props]
