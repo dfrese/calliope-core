@@ -13,7 +13,7 @@
     :else html ;; (map? html)
     ))
 
-(defn ^:no-doc clear-element! [element]
+#_(defn ^:no-doc clear-element! [element]
   (doseq [c (vec (array-seq (.-childNodes element)))]
     (.removeChild element c)))
 
@@ -29,9 +29,6 @@
 (defn finish-canvas! [prev-html element]
   (patch/patch-properties! element (->props prev-html) {}
                            {}))
-
-(defn ^:no-doc flush-canvas! [state element]
-  state)
 
 ;; (defn element [^js/Element element]
 ;;   element)

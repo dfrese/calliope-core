@@ -96,7 +96,7 @@
     ;; Note: commands may send new messages synchronously, so we may recur from here:
     (run-command! cmd (sub-cmd-context instance))))
 
-(defrecord ^:no-doc CalliopeApp [init view update subscription options])
+(defrecord ^:no-doc CalliopeApp [init view update subscription])
 
 (deftype ^:no-doc CalliopeInstance [app state element]
   IDeref
@@ -110,7 +110,7 @@
   - `update` a function from a model and a message to an updated model, and optionally a command,
   - `subscription` a function from a model to subscriptions"
   [init view update subscriptions]
-  (CalliopeApp. init view update subscriptions {}))
+  (CalliopeApp. init view update subscriptions))
 
 (defn create-instance!
   "Creates and returns an instance of the given app, using the given
