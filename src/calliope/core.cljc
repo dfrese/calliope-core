@@ -119,19 +119,3 @@
                         `(fn [v#] (~expr v#))))
                     exprs)]
        `(model->* ~m ~@fns))))
-
-#?(:cljs
-   (defrecord ^:no-doc EventListenerSub
-     [^js/EventTarget target event-name use-capture?]
-     ISub
-     (-subscribe! [this context]
-       (let [f (fn [e]
-                 (dispatch! context e))]
-         (.addEventListener target event-name f use-capture?)
-         f))
-     (-unsubscribe! [this f]
-       (.removeEventListener target event-name f use-capture?))))
-
-#?(:cljs
-   (defn event-listener-sub [^js/EventTarget target event-name use-capture?]
-     (EventListenerSub. target event-name use-capture?)))
