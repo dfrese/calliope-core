@@ -1,5 +1,5 @@
 (ns calliope.core
-  (:require [active.clojure.arrow :as a]))
+  (:require [dfrese.clojure-utils.functions :as f]))
 
 (defn context [dispatch-msg! & more]
   (apply assoc {::dispatch! dispatch-msg!}
@@ -24,7 +24,7 @@
 (defrecord ^:no-doc TransformedCmd [base t]
   ICmd
   (-run! [this context]
-    (-run! base (update-dispatcher context #(a/>>> t %)))))
+    (-run! base (update-dispatcher context #(f/comp % t)))))
 
 (defrecord ^:no-doc BatchedCmds [cmds]
   ICmd
@@ -40,10 +40,10 @@
     
     (instance? TransformedCmd cmd)
     (TransformedCmd. (.-base cmd)
-                     (apply a/>>> (.-t cmd) t ts))
+                     (apply f/comp (concat ts [t (.-t cmd)])))
     
     (satisfies? ICmd cmd)
-    (TransformedCmd. cmd (apply a/>>> t ts))
+    (TransformedCmd. cmd (apply f/comp (concat ts [t])))
     
     :else
     (assert false (str "Not a command:" cmd))))
@@ -66,7 +66,7 @@
 (defrecord ^:no-doc TransformedSub [base t]
   ISub
   (-subscribe! [this context]
-    (-subscribe! base (update-dispatcher context #(a/>>> t %))))
+    (-subscribe! base (update-dispatcher context #(f/comp % t))))
   (-unsubscribe! [this id]
     (-unsubscribe! base id)))
 
@@ -78,10 +78,10 @@
     
     (instance? TransformedSub sub)
     (TransformedSub. (.-base sub)
-                     (apply a/>>> (.-t sub) t ts))
+                     (apply f/comp (concat ts [t (.-t sub)])))
     
     (satisfies? ISub sub)
-    (TransformedSub. sub (apply a/>>> t ts))
+    (TransformedSub. sub (apply f/comp (concat ts [t])))
 
     :else
     (assert false (str "Not a subscription:" sub))))
