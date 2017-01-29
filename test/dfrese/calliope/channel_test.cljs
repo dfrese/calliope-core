@@ -1,6 +1,6 @@
-(ns calliope.channel-test
+(ns dfrese.calliope.channel-test
   (:require [cljs.test :refer-macros [deftest is testing]]
-            [calliope.channel :as ch]))
+            [dfrese.calliope.channel :as ch]))
 
 (deftest channel-test
   (testing "send works, without subscribers"

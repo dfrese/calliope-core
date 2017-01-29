@@ -1,6 +1,6 @@
-(ns calliope.core-test
+(ns dfrese.calliope.core-test
   (:require [cljs.test :refer-macros [deftest is testing]]
-            [calliope.core :as core :include-macros true]))
+            [dfrese.calliope.core :as core :include-macros true]))
 
 (deftest context-test
   (let [d! (fn [_] nil)]

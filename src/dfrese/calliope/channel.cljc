@@ -1,5 +1,5 @@
-(ns calliope.channel
-  (:require [calliope.core :as core]))
+(ns dfrese.calliope.channel
+  (:require [dfrese.calliope.core :as core]))
 
 (defn- next-sub-id [m]
   (inc (apply max 0 (keys m))))

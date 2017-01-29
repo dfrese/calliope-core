@@ -1,8 +1,8 @@
-(ns calliope.component
-  (:require [calliope.core :as core]
-            [orpheus.core :as orpheus]
-            [calliope.app :as app]
-            [edomus.core :as dom]))
+(ns dfrese.calliope.component
+  (:require [dfrese.calliope.core :as core]
+            [dfrese.calliope.app :as app]
+            [dfrese.orpheus.core :as orpheus]
+            [dfrese.edomus.core :as dom]))
 
 (defn- set-instance! [element instance]
   ;; TODO: auto generate name.

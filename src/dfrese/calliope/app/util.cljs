@@ -1,7 +1,7 @@
-(ns calliope.app.util
-  (:require [orpheus.core :as orpheus]
-            [orpheus.lift :as lift]
-            [orpheus.patch :as patch]))
+(ns dfrese.calliope.app.util
+  (:require [dfrese.orpheus.core :as orpheus]
+            [dfrese.orpheus.lift :as lift]
+            [dfrese.orpheus.patch :as patch]))
 
 ;; DOM as the rendering target
 

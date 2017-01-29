@@ -1,4 +1,4 @@
-(ns calliope.core
+(ns dfrese.calliope.core
   (:require [dfrese.clojure-utils.functions :as f]))
 
 (defn context [dispatch-msg! & more]

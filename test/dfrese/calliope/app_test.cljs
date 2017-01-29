@@ -1,8 +1,8 @@
-(ns calliope.app-test
+(ns dfrese.calliope.app-test
   (:require [cljs.test :refer-macros [deftest is testing]]
-            [calliope.core :as core]
-            [calliope.app :as app]
-            [orpheus.html :as html]))
+            [dfrese.calliope.core :as core]
+            [dfrese.calliope.app :as app]
+            [dfrese.orpheus.html :as html]))
 
 (defrecord TestSub [f]
   core/ISub

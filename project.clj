@@ -1,4 +1,4 @@
-(defproject de.active-group/calliope-core "0.1.0-SNAPSHOT"
+(defproject dfrese/calliope-core "0.1.0-SNAPSHOT"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -6,9 +6,9 @@
 
   :dependencies [[org.clojure/clojure "1.8.0" :scope "provided"]
                  [org.clojure/clojurescript "1.9.229" :scope "provided"]
-                 [de.active-group/edomus "0.1.0-SNAPSHOT"]
-                 [de.active-group/orpheus-core "0.1.0-SNAPSHOT"]
-                 [de.dfrese/clojure-utils "0.1.0-SNAPSHOT"]]
+                 [dfrese/edomus "0.1.0-SNAPSHOT"]
+                 [dfrese/orpheus-core "0.1.0-SNAPSHOT"]
+                 [dfrese/clojure-utils "0.1.0-SNAPSHOT"]]
 
   :plugins [[lein-cljsbuild "1.1.4"]
             [lein-doo "0.1.7"]
@@ -20,7 +20,7 @@
              :compiler {:output-to "target/test.js"
                         :output-dir "target"
                         :optimizations :none
-                        :main calliope.runner}}}}
+                        :main dfrese.calliope.runner}}}}
 
   :doo {:build "test"}
 

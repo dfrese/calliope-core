@@ -1,7 +1,7 @@
-(ns calliope.app
-  (:require [calliope.core :as core]
-            [calliope.app.util :as util]
-            [calliope.channel :as channel]))
+(ns dfrese.calliope.app
+  (:require [dfrese.calliope.core :as core]
+            [dfrese.calliope.app.util :as util]
+            [dfrese.calliope.channel :as channel]))
 
 (declare handle-message)
 
