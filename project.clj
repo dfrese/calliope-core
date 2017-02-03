@@ -8,7 +8,7 @@
                  [org.clojure/clojurescript "1.9.229" :scope "provided"]
                  [dfrese/edomus "0.1.0-SNAPSHOT"]
                  [dfrese/orpheus-core "0.1.0-SNAPSHOT"]
-                 [dfrese/clojure-utils "0.1.0-SNAPSHOT"]]
+                 [dfrese/clj "0.1.0-SNAPSHOT"]]
 
   :plugins [[lein-cljsbuild "1.1.4"]
             [lein-doo "0.1.7"]

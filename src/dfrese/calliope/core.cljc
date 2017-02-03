@@ -1,5 +1,5 @@
 (ns dfrese.calliope.core
-  (:require [dfrese.clojure-utils.functions :as f]))
+  (:require [dfrese.clj.functions :as f]))
 
 (defn context [dispatch-msg! & more]
   (apply assoc {::dispatch! dispatch-msg!}
