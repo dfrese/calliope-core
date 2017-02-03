@@ -2,6 +2,7 @@
   (:require [dfrese.calliope.core :as core]
             [dfrese.calliope.app :as app]
             [dfrese.orpheus.core :as orpheus]
+            [dfrese.clj.values :as v]
             [dfrese.edomus.core :as dom]))
 
 (defn- set-instance! [element instance]
@@ -121,12 +122,12 @@
                  (init value)))
              view
              (fn [model msg]
-               (let [[tag v] (orpheus/untag msg)]
+               (let [[tag v] (v/untag msg)]
                  (if (= tag ::properties-changed)
                    (reinit model (v controlling-property))
                    (update model msg))))
              (fn [model]
                (conj (subscription model)
                      (core/sub-> (app/port-sub properties-changed-port)
-                                 (orpheus/tag ::properties-changed))))
+                                 (v/tagger ::properties-changed))))
              options))
