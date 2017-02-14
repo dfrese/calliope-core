@@ -2,6 +2,7 @@
   (:require [dfrese.calliope.core :as core]
             [dfrese.calliope.app :as app]
             [dfrese.orpheus.core :as orpheus]
+            [dfrese.orpheus.html :as html]
             [dfrese.clj.values :as v]
             [dfrese.edomus.core :as dom]))
 
@@ -24,8 +25,8 @@
   (element-node-was-created! [this node]
     (let [model (init (fn [p]
                         (dom/get-property node p)))
-          app (app/app model view update subscription)
-          instance (app/create-instance! node app)]
+          app (app/app orpheus/canvas model view update subscription)
+          instance (app/start! node app)]
       (set-instance! node instance)
       (app/send-to-port! (get-instance node) did-mount-port node) ;; port or fn?
       node)
@@ -46,7 +47,7 @@
   (element-node-will-be-removed! [this node]
     (orpheus/element-node-will-be-removed! node-type node)
     ;; inform the component??
-    (app/destroy-instance! (get-instance node))))
+    (app/stop! (get-instance node))))
 
 (defrecord ^:no-doc DispatchEventCmd [f args return?]
   core/ICmd

@@ -1,8 +1,7 @@
 (ns dfrese.calliope.app-test
   (:require [cljs.test :refer-macros [deftest is testing]]
             [dfrese.calliope.core :as core]
-            [dfrese.calliope.app :as app]
-            [dfrese.orpheus.html :as html]))
+            [dfrese.calliope.app :as app]))
 
 (defrecord TestSub [f]
   core/ISub
@@ -32,44 +31,58 @@
       (println (.-stack e))
       (throw e))))
 
+(defn test-canvas [at]
+  (reify app/ICanvas
+    (normalize-view [this v] v)
+    (init-canvas! [this element] nil)
+    (update-canvas! [this state element v msg-callback] (reset! at v))
+    (finish-canvas! [this state element] (reset! at nil))))
+
 (deftest app-test
   (testing "updates dom on sub messages"
     (let [doc (.-body js/document)
+          view-atom (atom nil)
+          canvas (test-canvas view-atom)
           init "Hello"
           view (fn [txt]
-                 (html/div {} txt))
+                 [:div txt])
           update (fn [model txt]
                    txt)
           [sub upd-sub!] (test-sub)
           subscription (fn [model]
                          [sub])]
-      (app/run doc init view update subscription)
+      (app/start! doc (app/app canvas init view update subscription))
 
       (let [test (fn []
-                   (.-wholeText (.-firstChild (.-firstChild (.-body js/document)))))]
-        (is (= "Hello" (test)))
+                   ;; (.-wholeText (.-firstChild (.-firstChild (.-body js/document))))
+                   @view-atom)]
+        (is (= [:div "Hello"] (test)))
         (@upd-sub! "World")
-        (is (= "World" (test))))))
+        (is (= [:div "World"] (test))))))
           
   (testing "updates dom on cmd messages"
     (with-print-stacktrace
-      (fn [] (let [doc (.-body js/document)
-                    
-          [cmd upd-cmd!] (test-cmd)
-          init (core/+cmd "Hello" cmd)
-          view (fn [txt]
-                 (html/div {} txt))
-          update (fn [model txt]
-                   txt)
-          subscription (fn [model]
-                         nil)]
-      (app/run doc init view update subscription)
+      (fn []
+        (let [doc (.-body js/document)
+              view-atom (atom nil)
+              canvas (test-canvas view-atom)
+          
+              [cmd upd-cmd!] (test-cmd)
+              init (core/+cmd "Hello" cmd)
+              view (fn [txt]
+                     [:div txt])
+              update (fn [model txt]
+                       txt)
+              subscription (fn [model]
+                             nil)]
+          (app/start! doc (app/app canvas init view update subscription))
 
-      (let [test (fn []
-                   (.-wholeText (.-firstChild (.-firstChild (.-body js/document)))))]
-        (is (= "Hello" (test)))
-        (@upd-cmd! "World")
-        (is (= "World" (test))))))))
+          (let [test (fn []
+                       ;; (.-wholeText (.-firstChild (.-firstChild (.-body js/document))))
+                       @view-atom)]
+            (is (= [:div "Hello"] (test)))
+            (@upd-cmd! "World")
+            (is (= [:div "World"] (test))))))))
   ;; TODO: add/remove cmds/subs on model changes
   )
 

@@ -1,7 +1,12 @@
 (ns dfrese.calliope.app
   (:require [dfrese.calliope.core :as core]
-            [dfrese.calliope.app.util :as util]
             [dfrese.calliope.channel :as channel]))
+
+(defprotocol ^:no-doc ICanvas ;; could also be named ICanvasType?
+  (normalize-view [this v] "When different return values for view functions shall be possible, this normalizes them to a standard form.")
+  (init-canvas! [this element] "May mutate the given dom element node, and returns the initial canvas state.")
+  (update-canvas! [this state element v msg-callback] "Update the canvas for the given state and result of the view function `v`, returning a new state.")
+  (finish-canvas! [this state element] "Finalize the canvas upon application shutdown."))
 
 (declare handle-message)
 
@@ -73,9 +78,10 @@
              (concat news (keys prev-sub-map))))))
 
 (defn- new-canvas-state [canvas-state instance model]
-  (let [element (.-element instance)]
-    (let [html (.view (.-app instance) model)]
-      (util/update-canvas! canvas-state element html (partial handle-message instance)))))
+  (let [element (.-element instance)
+        canvas (.-canvas (.-app instance))]
+    (let [html (normalize-view canvas (.view (.-app instance) model))]
+      (update-canvas! canvas canvas-state element html (partial handle-message instance)))))
 
 (defn- set-model! [instance model]
   ;; TODO: will-update, did-update (did-update via vdom/post-commit-hook?)
@@ -96,7 +102,7 @@
     ;; Note: commands may send new messages synchronously, so we may recur from here:
     (run-command! cmd (sub-cmd-context instance))))
 
-(defrecord ^:no-doc CalliopeApp [init view update subscription])
+(defrecord ^:no-doc CalliopeApp [canvas init view update subscription])
 
 (deftype ^:no-doc CalliopeInstance [app state element]
   IDeref
@@ -105,19 +111,21 @@
 (defn app
   "Returns an app where
 
+  - `canvas` is an implementation of ICanvas, representing the rendering backend to use,
   - `init` is the initial model and optionally an initial command,
-  - `view` a function from a model to virtual dom,
+  - `view` a function from a model to virtual dom, depending on the canvas used,
   - `update` a function from a model and a message to an updated model, and optionally a command,
   - `subscription` a function from a model to subscriptions"
-  [init view update subscriptions]
-  (CalliopeApp. init view update subscriptions))
+  [canvas init view update subscriptions]
+  (CalliopeApp. canvas init view update subscriptions))
 
-(defn create-instance!
+(defn start!
   "Creates and returns an instance of the given app, using the given
   dom element to render the application view."
   [element app]
-  (let [state (atom {:model nil
-                     :canvas-state (util/init-canvas! element)
+  (let [canvas (.-canvas app)
+        state (atom {:model nil
+                     :canvas-state (init-canvas! canvas element)
                      :sub-map {}})
         instance (CalliopeInstance. app state element)]
     (let [[model cmd] (core/extract-model+cmd (.-init app))]
@@ -126,24 +134,15 @@
       (run-command! cmd (sub-cmd-context instance))
       instance)))
 
-(defn run
-  "Creates and returns an application instance for given app, using the given dom element to render the application view.
-
-  - `init` is the initial model and optionally an initial command,
-  - `view` a function from a model to virtual dom,
-  - `update` a function from a model and a message to an updated model, and optionally a command,
-  - `subscription` a function from a model to subscriptions"
-  [element init view update subscriptions]
-  (create-instance! element (app init view update subscriptions)))
-
-(defn destroy-instance!
+(defn stop!
   "Shuts down the given application instance. Returns the dom element that was used for it."
   [instance]
   ;; unsubscribe from all subs
   (update-subs! (:sub-map @(.-state instance))
                 nil (sub-cmd-context instance))
   ;; clear element
-  (let [state (util/finish-canvas! (:canvas-state @(.-state instance)) (.-element instance))]
+  (let [canvas (.-canvas (.-app instance))
+        state (finish-canvas! canvas (:canvas-state @(.-state instance)) (.-element instance))]
     (swap! (.-state instance) assoc :canvas-state state))
   (.-element instance))
 

@@ -25,8 +25,8 @@
           model (init {::props props
                        ::options options})
           ;; view_ (fn []) TODO: grap old/new-props here for element-node-...? (need to do normalization in view then (instead of 'canvas-update')
-          app (app/app model view update subscription)
-          instance (app/create-instance! node app)]
+          app (app/app orpheus/canvas model view update subscription)
+          instance (app/start! node app)]
       (set-instance! node instance)
       (orpheus/element-node-was-created! node-type node)
       node))
@@ -42,7 +42,7 @@
   (foreign-type-destroy! [this node props options]
     (orpheus/element-node-will-be-removed! node-type node)
     ;; inform the component??
-    (app/destroy-instance! (get-instance node))))
+    (app/stop! (get-instance node))))
 
 (defrecord ^:no-doc DispatchEventCmd
   [name value]
