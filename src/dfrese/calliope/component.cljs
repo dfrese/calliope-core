@@ -1,9 +1,12 @@
-(ns dfrese.calliope.component
+(ns dfrese.calliope.component ;; TODO: -> calliope-orpheus lib?
   (:require [dfrese.calliope.core :as core]
             [dfrese.calliope.app :as app]
             [dfrese.orpheus.core :as orpheus]
+            [dfrese.orpheus.html :as html]
+            [dfrese.orpheus.patch.base :as base]
             [dfrese.clj.values :as v]
-            [dfrese.edomus.core :as dom]))
+            [dfrese.edomus.core :as dom]
+            [clojure.string :as string]))
 
 (defn- set-instance! [element instance]
   ;; TODO: auto generate name.
@@ -13,80 +16,52 @@
   (aget element "__calliope_instance"))
 
 (def properties-changed-port ::properties-changed)
-(def did-mount-port ::did-mount-port)
 
 (defrecord ^:no-doc ComponentAppType
   [init view update subscription node-type]
-  orpheus/IElementType
-  (create-element-node [this document]
-    (orpheus/create-element-node node-type document))
-  
-  (element-node-was-created! [this node]
-    (let [model (init (fn [p]
-                        (dom/get-property node p)))
+  orpheus/IForeignType
+  (foreign-type-create [this props options]
+    (let [node (orpheus/create-element-node node-type js/document) ;; FIXME: get document from parent
+          model (init {::props props
+                       ::options options})
+          ;; view_ (fn []) TODO: grap old/new-props here for element-node-...? (need to do normalization in view then (instead of 'canvas-update')
           app (app/app model view update subscription)
           instance (app/create-instance! node app)]
       (set-instance! node instance)
-      (app/send-to-port! (get-instance node) did-mount-port node) ;; port or fn?
-      node)
-    (orpheus/element-node-was-created! node-type node))
-  
-  (element-node-will-be-updated! [this node old-props new-props]
-    ;; TODO: at some point (here?) we should check that the user does not change the same properties as the inner application (esp. the childNodes)
-    (orpheus/element-node-will-be-updated! node-type node old-props new-props))
-  
-  (element-node-was-updated! [this node props]
+      (orpheus/element-node-was-created! node-type node)
+      node))
+  (foreign-type-patch! [this node old-props new-props options]
+    ;; (orpheus/element-node-will-be-updated! node-type node old-props new-props) - not the right props. return v of view...?!
+    
     ;; property changes are signalled via a sub, as it's supposed to change the model.
-    (app/send-to-port! (get-instance node) properties-changed-port
-                       (fn [p] (dom/get-property node p)))
+    (app/send-to-port! (get-instance node) properties-changed-port {::props new-props
+                                                                    ::options options})
 
-    ;; port or fn??? after flush?
-    ;; (app/send-to-port! (get-instance node) did-update-port [old-props new-props])
-    (orpheus/element-node-was-updated! node-type node props))
-  (element-node-will-be-removed! [this node]
+    ;; (orpheus/element-node-was-updated! node-type node props)
+    )
+  (foreign-type-destroy! [this node props options]
     (orpheus/element-node-will-be-removed! node-type node)
     ;; inform the component??
     (app/destroy-instance! (get-instance node))))
 
-(defrecord ^:no-doc DispatchEventCmd [f args return?]
+(defrecord ^:no-doc DispatchEventCmd
+  [name value]
   core/ICmd
   (-run! [this context]
-    (let [element (app/context-element context)
-          event (apply f args)
-          do-default? (.dispatchEvent element event)]
-      (when return?
-        (core/dispatch! context do-default?)))))
-
-(defn dispatch-any-event*
-  "Returns a command that emits an event on the component
-  element. Events are created by `(apply f args)`. If `return?` is
-  true, a message is sent to the app afterwards, specifying if
-  `preventDefault` was not called during the event
-  dispatch. Otherwise, no message is send."
-  [return? f & args]
-  (DispatchEventCmd. f args return?))
-
-(defn- mk-event [event init]
-  ;; TODO: init as cljs map? bubbled, cancelable, etc props.
-  (new js/Event event init))
+    (let [instance (app/context-instance context)
+          model @instance
+          dispatch! (::parent-dispatch! model)]
+      (when-let [handler (get (::event-handlers model) (string/lower-case name))]
+        (let [msg (handler value)]
+          (when (some? msg)
+            (dispatch! msg)))))))
 
 (defn dispatch-event
-  "Returns a command that emits the given simple event on the
-  component element. Events are created by `(new js/Event event
-  init)`. If `return?` is true, a message is sent to the app
-  afterwards, specifying if `preventDefault` was not called during the
-  event dispatch. Otherwise, no message is send."
-  [event & [init]]
-  (dispatch-any-event* false mk-event event init))
-
-(defn- mk-custom-event
-  [event detail]
-  ;; TODO: also bubbled, cancelable, etc props.
-  (new js/CustomEvent event #js {"detail" detail}))
-
-(defn dispatch-custom-event
-  [event detail]
-  (dispatch-any-event* false mk-custom-event event detail))
+  "Returns a command that triggers the given event on the component
+  element. If the user of the component registered a handler for
+  \"on<name>\", it will be invoked with the given value."
+  [name & [value]]
+  (DispatchEventCmd. name value))
 
 ;; Note: other than for a normal app, `init` must be a function from the components properties to the actual init value (a model+cmd)
 (defn- component-type [element-type init view update subscription]
@@ -98,39 +73,49 @@
   (fn [props]
     (orpheus/h type props)))
 
-(defn component
-  "Returns a constructor for virtual elements, implemented via a model-view-update like apps.
-   One difference between apps and components is that components get a property map from the    TODO describe childNodes, event-handlers
-   user of the element. Subscribe to [[property-change-port]] so receives updates of the property map.
+(defn- get-property [props k]
+  (get props (name k)))
 
-  - `init` is a function from a property map to the initial model and optionally an initial command,
-  - `view` a function from a model to virtual dom,
-  - `update` a function from a model and a message to an updated model, and optionally a command,
-  - `subscription` a function from a model to subscriptions."
-  [element-type init view update subscription]
-  (ctor-fn (component-type element-type init view update subscription)))
+(defn- get-event-handlers [props]
+  (reduce-kv (fn [r k v]
+               (if-let [name (base/event-type-name? k)]
+                 (assoc r (string/lower-case name) v)
+                 r))
+             {}
+             props))
 
 (defn controlled-component
   "Defines a component where some aspects are controlled by the user.
   - `element-type` the tag name of the main element
-  - `controlling-property` name of a property, which can be set by the user to control this components behaviour or view.
   - `init` a function to create an initial model from the initial value of the controlling property
+  - `reinit` ...TODO
   - `view`, `update` and `subscription` as usual.
-  - the `controlling-property-changed-port` should be subscribed, to react to updates of the controlling property value.
   "
-  [element-type controlling-property init reinit view update subscription]
-  ;; should generate change custom event, whenever it would like to change the controlling property by itself (if ever)
-  (component element-type
-             (fn [get-property]
-               (let [value (get-property controlling-property)]
-                 (init value)))
-             view
-             (fn [model msg]
-               (let [[tag v] (v/untag msg)]
-                 (if (= tag ::properties-changed)
-                   (reinit model (v controlling-property))
-                   (update model msg))))
-             (fn [model]
-               (conj (subscription model)
-                     (core/sub-> (app/port-sub properties-changed-port)
-                                 (v/tagger ::properties-changed))))))
+  [element-type init reinit view update subscription]
+  ;; TODO: statify? (not crutial though)
+  (ctor-fn
+   (component-type element-type
+                   (fn _init [v]
+                     (let [props (::props v)
+                           parent-options (::options v)
+                           handlers (get-event-handlers props)]
+                       {::model (init (partial get-property props))
+                        ::event-handlers handlers
+                        ::parent-dispatch! (:dispatch! parent-options)}))
+                   (fn _view [model]
+                     (view (::model model)))
+                   (fn _update [model msg]
+                     (let [[tag v] (v/untag msg)]
+                       (if (= tag ::properties-changed)
+                         (let [new-props (::props v)
+                               parent-options (::options v)]
+                           {::model (reinit (::model model) (partial get-property new-props))
+                            ::parent-dispatch! (:dispatch! parent-options)
+                            ::event-handlers (get-event-handlers new-props)})
+                         (let [[m c] (core/extract-model+cmd (update (::model model) msg))]
+                           (core/+cmd (assoc model ::model m)
+                                      c)))))
+                   (fn _subscription [model]
+                     (conj (subscription (::model model))
+                           (core/sub-> (app/port-sub properties-changed-port)
+                                       (v/tagger ::properties-changed)))))))
