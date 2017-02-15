@@ -2,10 +2,9 @@
   (:require [dfrese.calliope.core :as core]
             [dfrese.calliope.channel :as channel]))
 
-(defprotocol ^:no-doc ICanvas ;; could also be named ICanvasType?
-  (normalize-view [this v] "When different return values for view functions shall be possible, this normalizes them to a standard form.")
+(defprotocol ^:no-doc ICanvas
   (init-canvas! [this element] "May mutate the given dom element node, and returns the initial canvas state.")
-  (update-canvas! [this state element v msg-callback] "Update the canvas for the given state and result of the view function `v`, returning a new state.")
+  (update-canvas! [this state element model msg-callback] "Update the canvas for the given state and model, returning a new state.")
   (finish-canvas! [this state element] "Finalize the canvas upon application shutdown."))
 
 (declare handle-message)
@@ -80,8 +79,7 @@
 (defn- new-canvas-state [canvas-state instance model]
   (let [element (.-element instance)
         canvas (.-canvas (.-app instance))]
-    (let [html (normalize-view canvas (.view (.-app instance) model))]
-      (update-canvas! canvas canvas-state element html (partial handle-message instance)))))
+    (update-canvas! canvas canvas-state element model (partial handle-message instance))))
 
 (defn- set-model! [instance model]
   ;; TODO: will-update, did-update (did-update via vdom/post-commit-hook?)
@@ -102,22 +100,28 @@
     ;; Note: commands may send new messages synchronously, so we may recur from here:
     (run-command! cmd (sub-cmd-context instance))))
 
-(defrecord ^:no-doc CalliopeApp [canvas init view update subscription])
+(defrecord ^:no-doc CalliopeApp [canvas init update subscription])
 
 (deftype ^:no-doc CalliopeInstance [app state element]
   IDeref
   (-deref [this] (:model @state)))
 
+(def empty-canvas
+  (reify ICanvas
+    (init-canvas! [this element] nil)
+    (update-canvas! [this state element model msg-callback] nil)
+    (finish-canvas! [this state element] nil)))
+
 (defn app
   "Returns an app where
 
-  - `canvas` is an implementation of ICanvas, representing the rendering backend to use,
+  - `canvas` is an implementation of ICanvas, representing the rendering frontend to use,
   - `init` is the initial model and optionally an initial command,
-  - `view` a function from a model to virtual dom, depending on the canvas used,
   - `update` a function from a model and a message to an updated model, and optionally a command,
   - `subscription` a function from a model to subscriptions"
-  [canvas init view update subscriptions]
-  (CalliopeApp. canvas init view update subscriptions))
+  [canvas init update subscriptions]
+  (assert (satisfies? ICanvas canvas))
+  (CalliopeApp. canvas init update subscriptions))
 
 (defn start!
   "Creates and returns an instance of the given app, using the given

@@ -31,27 +31,26 @@
       (println (.-stack e))
       (throw e))))
 
-(defn test-canvas [at]
+(defn test-canvas [at view]
   (reify app/ICanvas
-    (normalize-view [this v] v)
     (init-canvas! [this element] nil)
-    (update-canvas! [this state element v msg-callback] (reset! at v))
+    (update-canvas! [this state element model msg-callback] (reset! at (view model)))
     (finish-canvas! [this state element] (reset! at nil))))
 
 (deftest app-test
   (testing "updates dom on sub messages"
     (let [doc (.-body js/document)
           view-atom (atom nil)
-          canvas (test-canvas view-atom)
-          init "Hello"
           view (fn [txt]
                  [:div txt])
+          canvas (test-canvas view-atom view)
+          init "Hello"
           update (fn [model txt]
                    txt)
           [sub upd-sub!] (test-sub)
           subscription (fn [model]
                          [sub])]
-      (app/start! doc (app/app canvas init view update subscription))
+      (app/start! doc (app/app canvas init update subscription))
 
       (let [test (fn []
                    ;; (.-wholeText (.-firstChild (.-firstChild (.-body js/document))))
@@ -64,18 +63,18 @@
     (with-print-stacktrace
       (fn []
         (let [doc (.-body js/document)
+              view (fn [txt]
+                     [:div txt])
               view-atom (atom nil)
-              canvas (test-canvas view-atom)
+              canvas (test-canvas view-atom view)
           
               [cmd upd-cmd!] (test-cmd)
               init (core/+cmd "Hello" cmd)
-              view (fn [txt]
-                     [:div txt])
               update (fn [model txt]
                        txt)
               subscription (fn [model]
                              nil)]
-          (app/start! doc (app/app canvas init view update subscription))
+          (app/start! doc (app/app canvas init update subscription))
 
           (let [test (fn []
                        ;; (.-wholeText (.-firstChild (.-firstChild (.-body js/document))))
