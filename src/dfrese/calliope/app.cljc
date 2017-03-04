@@ -7,6 +7,11 @@
   (update-canvas! [this state element model msg-callback] "Update the canvas for the given state and model, returning a new state.")
   (finish-canvas! [this state element] "Finalize the canvas upon application shutdown."))
 
+(defn call-later! [f & args]
+  #?(:clj (future (apply f args)))
+  #?(:cljs (.setTimeout js/window #(apply f args) 0))
+  nil)
+
 (declare handle-message)
 
 (defn- sub-cmd-context [instance]
@@ -78,35 +83,72 @@
 
 (defn- new-canvas-state [canvas-state instance model]
   (let [element (.-element instance)
-        canvas (.-canvas (.-app instance))]
-    (update-canvas! canvas canvas-state element model (partial handle-message instance))))
+        canvas (.-canvas instance)]
+    ;; Note: Generally, either the view must not dispatch messages synchronously,
+    ;; or a model update must not render synchronously, to allow a
+    ;; strict state progress.
+    
+    ;; Because event handlers are usually asynchronously triggered, we
+    ;; prevent them handling messages synchronously. We have to,
+    ;; because the browser may actually do that! For example when a
+    ;; focused element is removed, a 'blur' event is dispatched
+    ;; synchronously :-( (it' still better if the user calls blur() in
+    ;; on-blur then, to prevent a duplicate message; but only his
+    ;; model may break, instead of the whole app)
+    (swap! (.-state instance) assoc :msg-mode :async)
+    (let [nstate (update-canvas! canvas canvas-state element model (partial handle-message instance))]
+      (swap! (.-state instance) assoc :msg-mode :sync)
+      nstate)))
 
 (defn- set-model! [instance model]
   ;; TODO: will-update, did-update (did-update via vdom/post-commit-hook?)
-  ;; Note: msg-callback must not be called synchronously from here!
+  ;; Note: msg-callback must not be called synchronously here!
+  (swap! (.-state instance) assoc :msg-mode :async)
   (let [context (sub-cmd-context instance)
-        sub-map (update-subs! (:sub-map @(.-state instance)) (.subscription (.-app instance) model)
+        sub-map (update-subs! (:sub-map @(.-state instance)) (.subscription instance model)
                               context)
         canvas-state (new-canvas-state (:canvas-state @(.-state instance)) instance model)]
     (swap! (.-state instance)
            assoc
            :model model
            :canvas-state canvas-state
-           :sub-map sub-map)))
+           :sub-map sub-map
+           :msg-mode :sync)))
+
+(defn- do-handle-message! [instance msg]
+  (let [[model cmd] (core/extract-model+cmd (.update instance (:model @(.-state instance)) msg))]
+    (set-model! instance model)
+    ;; Note: commands may send new messages synchronously, so we may
+    ;; recur from here; but wenn that happens infinitely we'll just
+    ;; run out of stack.
+    (run-command! cmd (sub-cmd-context instance))))
+
+(defn- warning [msg]
+  ;; TODO: something better?
+  (println "Warning:" msg))
 
 (defn- handle-message [instance msg] ;; + callback for completion?
-  (let [[model cmd] (core/extract-model+cmd (.update (.-app instance) (:model @(.-state instance)) msg))]
-    (set-model! instance model)
-    ;; Note: commands may send new messages synchronously, so we may recur from here:
-    (run-command! cmd (sub-cmd-context instance))))
+  (case (:msg-mode @(.-state instance))
+    :async
+    (call-later! do-handle-message! instance msg) ;; could issue a warning if it'a a sub? Or leave it as a 'valid' feature?
+    :sync
+    (do-handle-message! instance msg)
+    :stopped
+    (warning (str "Message ignored, that was sent to a stopped application instance: " (pr-str msg)))))
 
 (defrecord ^:no-doc CalliopeApp [canvas init update subscription])
 
-(deftype ^:no-doc CalliopeInstance [app state element]
-  IDeref
-  (-deref [this] (:model @state)))
+(deftype ^:no-doc CalliopeInstance
+  [canvas update subscription state element])
 
-(def empty-canvas
+(comment TODO would be nice to have
+         #?@(:clj [clojure.lang.IDeref
+            (deref [this] (:model @state))])
+  #?@(:cljs [cljs.core.IDeref ;; FIXME?
+             (-deref [this] (:model @state))])
+         )
+
+(def no-canvas
   (reify ICanvas
     (init-canvas! [this element] nil)
     (update-canvas! [this state element model msg-callback] nil)
@@ -123,31 +165,50 @@
   (assert (satisfies? ICanvas canvas))
   (CalliopeApp. canvas init update subscriptions))
 
+(defn ^:no-doc start-internal!
+  [element canvas update-f subscription initial-model initial-cmd]
+  (let [state (atom {:model initial-model
+                     :msg-mode :async
+                     :canvas-state (init-canvas! canvas element)
+                     :sub-map {}})
+        instance (CalliopeInstance. canvas update-f subscription state element)
+        ;; init:
+        canvas-state (new-canvas-state (:canvas-state @state) instance initial-model)
+        context (sub-cmd-context instance)
+        sub-map (update-subs! (:sub-map @state) (.subscription instance initial-model)
+                              context)]
+    (swap! state assoc
+           :canvas-state canvas-state
+           :sub-map sub-map
+           :msg-mode :sync)
+    ;; Note: commands may now send messages synchronously
+    (run-command! initial-cmd context)
+    instance))
+
 (defn start!
   "Creates and returns an instance of the given app, using the given
   dom element to render the application view."
   [element app]
-  (let [canvas (.-canvas app)
-        state (atom {:model nil
-                     :canvas-state (init-canvas! canvas element)
-                     :sub-map {}})
-        instance (CalliopeInstance. app state element)]
-    (let [[model cmd] (core/extract-model+cmd (.-init app))]
-      (set-model! instance model)
-      ;; Note: commands may send new messages synchronously, so we may recur from here:
-      (run-command! cmd (sub-cmd-context instance))
-      instance)))
+  (let [[model cmd] (core/extract-model+cmd (.-init app))
+        canvas (.-canvas app)]
+    (start-internal! element canvas (.-update app) (.-subscription app)
+                     model cmd)))
 
 (defn stop!
   "Shuts down the given application instance. Returns the dom element that was used for it."
   [instance]
   ;; unsubscribe from all subs
   (update-subs! (:sub-map @(.-state instance))
-                nil (sub-cmd-context instance))
+                nil
+                ;; does not need a context, because it should only do unsubribtions:
+                nil)
   ;; clear element
-  (let [canvas (.-canvas (.-app instance))
+  (let [canvas (.-canvas instance)
         state (finish-canvas! canvas (:canvas-state @(.-state instance)) (.-element instance))]
-    (swap! (.-state instance) assoc :canvas-state state))
+    (swap! (.-state instance) assoc
+           :msg-mode :stopped
+           :sub-map nil
+           :canvas-state state))
   (.-element instance))
 
 ;; Ports

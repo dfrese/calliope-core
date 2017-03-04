@@ -33,9 +33,14 @@
 
 (defn test-canvas [at view]
   (reify app/ICanvas
-    (init-canvas! [this element] nil)
-    (update-canvas! [this state element model msg-callback] (reset! at (view model)))
-    (finish-canvas! [this state element] (reset! at nil))))
+    (init-canvas! [this element] ::state)
+    (update-canvas! [this state element model msg-callback]
+      (assert (= ::state state))
+      (reset! at (view model))
+      state)
+    (finish-canvas! [this state element]
+      (assert (= ::state state))
+      (reset! at nil))))
 
 (deftest app-test
   (testing "updates dom on sub messages"
@@ -81,7 +86,11 @@
                        @view-atom)]
             (is (= [:div "Hello"] (test)))
             (@upd-cmd! "World")
-            (is (= [:div "World"] (test))))))))
+            (is (= [:div "World"] (test)))
+
+            (@upd-cmd! "Hello World")
+            (is (= [:div "Hello World"] (test)))
+            )))))
   ;; TODO: add/remove cmds/subs on model changes
   )
 
