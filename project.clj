@@ -23,5 +23,6 @@
   :doo {:build "test"}
 
   :codox {:language :clojurescript
-          :metadata {:doc/format :markdown}}
+          :metadata {:doc/format :markdown}
+          :namespaces [#"^dfrese.calliope\.(?!impl)"]}
   )
