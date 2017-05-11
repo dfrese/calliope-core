@@ -1,5 +1,5 @@
 (defproject dfrese/calliope-core "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
+  :description "Calliope is a purely functional web application framework."
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
