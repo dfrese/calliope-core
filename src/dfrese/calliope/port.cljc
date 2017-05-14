@@ -40,9 +40,11 @@
 (defrecord ^:no-doc PortSub [port]
   ext/ISub
   (-subscribe! [this context]
-    (let [id (subscribe-to-port! (ext/context-instance context)
-                                 port (ext/dispatcher context))]
-      [(::instance context) id]))
+    (let [instance (ext/context-instance context)]
+      (assert (some? instance))
+      (let [id (subscribe-to-port! instance
+                                   port (ext/dispatcher context))]
+        [instance id])))
   (-unsubscribe! [this [instance id]]
     (unsubscribe-from-port! instance
                             port id)))

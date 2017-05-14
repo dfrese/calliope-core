@@ -115,7 +115,7 @@
 
 (defn- sub-cmd-context [instance]
   (ext/context (partial handle-message instance)
-               ::instance instance))
+               :dfrese.calliope.ext/instance instance))
 
 (defn- run-command! [cmd context]
   (when cmd

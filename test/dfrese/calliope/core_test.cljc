@@ -31,6 +31,7 @@
 (defrecord TestSub [f]
   ext/ISub
   (-subscribe! [this context]
+    (assert (ext/context-instance context)) ;; as a test
     (reset! f #(ext/dispatch! context %))
     nil)
   (-unsubscribe! [this id]
